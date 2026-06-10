@@ -1,0 +1,90 @@
+openapi: 3.1.0
+info:
+  title: WhenPeak Predict
+  description: Public, stateless cognitive-performance prediction from self-reported sleep.
+  version: "1.0.0"
+servers:
+  - url: https://api.whenpeak.com
+paths:
+  /api/v1/predict:
+    post:
+      operationId: predict
+      summary: Predict today's performance curve from self-reported sleep.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [wake_time, sleep_time, sleep_quality]
+              properties:
+                wake_time:
+                  type: string
+                  description: This morning's wake time, HH:MM (e.g. "07:30").
+                sleep_time:
+                  type: string
+                  description: Last night's sleep time, HH:MM (e.g. "23:00").
+                sleep_quality:
+                  type: string
+                  enum: [good, fair, poor]
+                exercise_yesterday:
+                  type: boolean
+                exercise_timing:
+                  type: string
+                  enum: [morning, afternoon, evening]
+      responses:
+        "200":
+          description: A 24-hour performance prediction.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dps:
+                    type: number
+                    description: Daily Performance Score, 0-100.
+                  curve:
+                    type: array
+                    items: { type: number }
+                    description: 24 hourly performance values (index 0 = midnight).
+                  peak_1: { type: object }
+                  peak_2: { type: object }
+                  dip: { type: object }
+                  chronotype: { type: string }
+                  confidence: { type: string }
+                  upgrade_prompt: { type: string }
+  /api/v1/predict/week:
+    post:
+      operationId: predictWeek
+      summary: Project performance over the next 7-30 days from one self-report.
+      parameters:
+        - in: query
+          name: days
+          required: false
+          schema: { type: integer, minimum: 7, maximum: 30, default: 7 }
+          description: Forecast horizon in days.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [wake_time, sleep_time, sleep_quality]
+              properties:
+                wake_time: { type: string }
+                sleep_time: { type: string }
+                sleep_quality: { type: string, enum: [good, fair, poor] }
+      responses:
+        "200":
+          description: A multi-day projection.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  days: { type: integer }
+                  method: { type: string }
+                  forecast:
+                    type: array
+                    items: { type: object }
+                  upgrade_prompt: { type: string }
