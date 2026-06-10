@@ -1,0 +1,55 @@
+# WhenPeak Integrations
+
+Reference integrations for the [WhenPeak](https://whenpeak.com) performance-intelligence API —
+the API that predicts when a person's brain works best from their sleep data.
+
+Everything here is a **thin client over the public API**. No prediction logic lives in this repo;
+the model stays behind the API. These are meant to be copied, learned from, and adapted.
+
+## What's inside
+
+| Path | What it is |
+|---|---|
+| `mcp_server.py` | A Model Context Protocol server (FastMCP) exposing WhenPeak to Claude Desktop and other MCP agents. A working reference for "MCP server that proxies a REST API." |
+| `skill_example.py` | A minimal end-to-end example of the agentic tool-use loop with the Anthropic SDK: model → `tool_use` → API call → `tool_result` → final answer. Includes `--auto` behavioural checks. |
+| `gpt/instructions.md` | The system prompt + setup for wiring WhenPeak into a ChatGPT GPT. |
+| `gpt/openapi_action.yaml` | The OpenAPI action schema for the public `/api/v1/predict` endpoint. |
+
+## Quick start
+
+```bash
+pip install -r requirements.txt
+cp .env.example .env        # fill in keys
+```
+
+**MCP server** (the public `predict` tool needs no key; the authed tools need `WHENPEAK_API_KEY`):
+
+```bash
+python mcp_server.py        # serves SSE at /sse, health at /health
+```
+
+Point an MCP client at `http://localhost:8080/sse`. To deploy, set `WHENPEAK_API_URL` and
+`WHENPEAK_API_KEY` as environment variables on your host.
+
+**Agentic skill example** (needs `ANTHROPIC_API_KEY`):
+
+```bash
+python skill_example.py --auto   # conversation-flow checks
+python skill_example.py          # interactive
+```
+
+## Get an API key
+
+The `/api/v1/predict` endpoint is public — no key needed. For the authenticated
+endpoints, register a free key (1,000 calls/month):
+
+```bash
+curl -X POST https://api.whenpeak.com/api/v1/auth/register \
+  -H "Content-Type: application/json" -d '{"label":"my app"}'
+```
+
+Full API docs: https://whenpeak.com/docs
+
+## License
+
+MIT — see [LICENSE](LICENSE). Use it however you like.
