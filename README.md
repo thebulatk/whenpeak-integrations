@@ -6,6 +6,12 @@ the API that predicts when a person's brain works best from their sleep data.
 Everything here is a **thin client over the public API**. No prediction logic lives in this repo;
 the model stays behind the API. These are meant to be copied, learned from, and adapted.
 
+## Changelog
+
+### June 2026
+- **Multi-day predictions.** New MCP tool `whenpeak_multiday_predict` and GPT action `predictWeek` (`POST /api/v1/predict/week?days=N`, 7–30 days). Authenticated users get the behavioural forecast at `GET /api/v1/performance/forecast`.
+- **Scoring v2.** Responses now include `internal_dps` and a `scoring` breakdown alongside `dps`. Missing sensors are no longer scored as zero; behaviours (exercise, mindfulness) are positive-only bonuses; maximum score scales with data breadth (sleep only → 90, two sources → 95, three+ → 100). No breaking changes — `dps` keeps its key and range.
+
 ## What's inside
 
 | Path | What it is |
