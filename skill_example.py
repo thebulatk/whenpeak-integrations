@@ -159,7 +159,7 @@ def execute_tool(name: str, inputs: dict) -> dict:
 
     except httpx.ConnectError:
         print(f"    x Could not connect to {WHENPEAK_BASE}")
-        print(f"      Is the API running? Check Railway or run: uvicorn api:app --reload")
+        print(f"      Check the API is reachable: https://api.whenpeak.com/health")
         return {"error": "API not reachable", "base_url": WHENPEAK_BASE}
     except Exception as e:
         print(f"    x Error: {e}")
@@ -234,8 +234,8 @@ def check_api():
         return False
     except httpx.ConnectError:
         print(f"x API not reachable at {WHENPEAK_BASE}")
-        print(f"  Start locally: uvicorn api:app --reload --port 8000")
-        print(f"  Or deploy to Railway and set WHENPEAK_BASE_URL\n")
+        print(f"  Check https://api.whenpeak.com/health, or set WHENPEAK_BASE_URL")
+        print(f"  to wherever your WhenPeak-compatible API is hosted.\n")
         return False
 
 
