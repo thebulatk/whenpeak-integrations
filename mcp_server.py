@@ -41,7 +41,7 @@ def _auth_headers() -> dict:
     if not API_KEY:
         raise RuntimeError(
             "This tool needs WHENPEAK_API_KEY set (a pk_live_ key). "
-            "Get one free at https://api.whenpeak.com/api/v1/auth/register"
+            "Get one free at https://whenpeak.com/dashboard.html"
         )
     return {"X-WhenPeak-API-Key": API_KEY, "Content-Type": "application/json"}
 

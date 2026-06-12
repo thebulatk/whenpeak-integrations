@@ -44,10 +44,7 @@ python skill_example.py          # interactive
 The `/api/v1/predict` endpoint is public — no key needed. For the authenticated
 endpoints, register a free key (1,000 calls/month):
 
-```bash
-curl -X POST https://api.whenpeak.com/api/v1/auth/register \
-  -H "Content-Type: application/json" -d '{"label":"my app"}'
-```
+Create a free account at [whenpeak.com/dashboard.html](https://whenpeak.com/dashboard.html) — your `pk_live` key is issued on signup (Free tier: 1,000 calls/month).
 
 Full API docs: https://whenpeak.com/docs
 
