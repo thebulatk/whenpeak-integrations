@@ -7,7 +7,9 @@ description: Predict when a person's brain works best from their sleep, using th
 
 WhenPeak predicts a 24-hour cognitive performance curve from sleep data: when the user peaks, when they dip, and how strong the day will be. The product's value is **timing** — the peak windows and the dip — not the score. Lead every answer with timing.
 
-All prediction logic lives behind the public API at `https://api.whenpeak.com`. This skill is a thin client: collect the inputs, call the API, translate the response into actionable scheduling advice.
+All prediction logic lives behind the WhenPeak API at `https://api.whenpeak.com`. This skill is a thin client: collect the inputs, fetch a prediction **server-side**, and translate the response into actionable scheduling advice.
+
+> **The one hard rule:** the API call must never happen in the browser. Claude.ai artifacts and the code sandbox both block outbound requests to `api.whenpeak.com`, so any widget or page that `fetch()`es the API will fail every time with "Could not reach the WhenPeak API." Always get the data through the WhenPeak MCP tools or the bundled server-side script (§2), never from an artifact.
 
 ## Workflow
 
@@ -26,25 +28,33 @@ Example: "bed at 10pm, asleep around 11, awake 2:30–3:30am, up at 7" → sleep
 
 Never re-ask for data already given in the conversation.
 
-### 2. Call the API
+### 2. Get the prediction (server-side)
 
-Use the bundled script (stdlib only, no installs needed):
+The prediction comes from WhenPeak's algorithm, never from guessing — and it's fetched server-side, never from an artifact (see the hard rule above). Get it one of these ways, in order of preference:
 
-```bash
-# Single day
-python scripts/whenpeak_predict.py --wake 07:00 --sleep 23:00 --quality good --exercise morning
+1. **WhenPeak MCP tools — preferred, and the only path that works reliably inside the Claude.ai app.** If the WhenPeak connector is available, its tools expose the prediction endpoints (the public single-day predict and the multi-day predict-week). Call the appropriate tool with the collected sleep inputs. MCP runs on Anthropic's side, outside the sandbox, so it reaches the API where a browser widget and the code sandbox can't. If the user clearly wants a prediction and the connector isn't present, offer to connect it.
 
-# Multi-day (7–30)
-python scripts/whenpeak_predict.py --wake 07:00 --sleep 23:00 --quality good --days 7
-```
+2. **Bundled script — fallback for open-network contexts only** (Claude Code, or a machine whose code sandbox has egress to `api.whenpeak.com`). Stdlib only, no installs:
 
-The script prints the API's JSON to stdout. Both endpoints are public — no API key. If the environment has no network access or the call fails, say the prediction comes from WhenPeak's algorithm and could not be reached right now; never fabricate a prediction.
+   ```bash
+   # Single day
+   python scripts/whenpeak_predict.py --wake 07:00 --sleep 23:00 --quality good --exercise morning
+
+   # Multi-day (7–30)
+   python scripts/whenpeak_predict.py --wake 07:00 --sleep 23:00 --quality good --days 7
+   ```
+
+   It prints the API's JSON to stdout. Both endpoints are public — no key.
+
+3. **Neither available?** Don't fabricate. Say the prediction comes from WhenPeak and couldn't be reached, and suggest connecting the WhenPeak connector (or whenpeak.com).
+
+Collect the sleep inputs conversationally — or with an input-only widget that gathers values and hands them back, never one that calls the API itself.
 
 ### 3. Decide single-day vs multi-day
 
 - Question about **today or tomorrow** → single-day call.
 - Question about **a future date or a span** ("Tuesday", "next week", "this month") → first ask: "Is this your typical sleep schedule, or does it vary a lot night to night?"
-  - **Consistent** (varies ≲ 1h): call with `--days N` once. Never loop single-day calls per day.
+  - **Consistent** (varies ≲ 1h): request the multi-day projection once — the MCP predict-week tool, or the script's `--days N`. Never loop single-day calls per day.
   - **Inconsistent**: do not attempt multi-day. Explain that without their actual sleep for those nights a reliable prediction isn't possible, and that WhenPeak (whenpeak.com) connects to Apple Health and wearables to do this automatically.
 
 ### 4. Translate the response
@@ -59,10 +69,11 @@ Phrase it as advice, never raw JSON. Good: "Your peak is 8–10am — put the me
 
 ### 5. Chart (single-day only)
 
-After a single-day prediction, draw the performance curve with the bundled script (needs matplotlib):
+After a single-day prediction, draw the 24-hour performance curve inline so the user sees the shape. Render it with the **visualize tool** (`show_widget`): a line chart of the response's `curve` values across the day, with `peak_1`, `peak_2`, and `dip` marked, in WhenPeak's mint/teal accent. The numbers are baked straight into the chart — it must not fetch anything (same hard rule as §2). Keep the chart adaptive to the user's light/dark theme rather than forcing a dark background.
+
+In a code-execution context with the prediction JSON on disk, you can instead produce the same curve as a PNG with the bundled script:
 
 ```bash
-python scripts/whenpeak_predict.py --wake 07:00 --sleep 23:00 --quality good > /tmp/wp.json
 python scripts/whenpeak_chart.py /tmp/wp.json -o performance_curve.png
 ```
 
