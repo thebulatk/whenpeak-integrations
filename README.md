@@ -83,6 +83,7 @@ The `claude/` folder is a self-contained [Agent Skill](https://docs.claude.com/e
 
 ```
 claude/
+├── README.md                     # full bundle: skill + connector setup
 ├── SKILL.md                      # instructions + when to trigger
 ├── scripts/
 │   ├── whenpeak_predict.py       # stdlib-only API client (no installs)
@@ -95,11 +96,11 @@ Use it by uploading the folder as a skill in Claude.ai (Settings → Capabilitie
 
 **How the skill reaches the API.** The prediction is always fetched server-side, never from a browser
 artifact (Claude.ai's artifact and code sandboxes both block outbound calls to `api.whenpeak.com`).
-Inside the Claude.ai app the skill uses the **WhenPeak connector** (the public predict tool, no key),
-which runs on Anthropic's side outside the sandbox — the same way the GPT reaches the API through
-ChatGPT's server side. In Claude Code (or any host with network egress) the bundled script reaches
-the public endpoints directly. In Claude.ai, add the connector under Settings → Connectors. The
-scripts also work standalone:
+Inside the app the skill uses the **WhenPeak connector**, which runs on Anthropic's side outside the
+sandbox — the same way the GPT reaches the API through ChatGPT's server side. Connect it in
+**Claude Desktop or Claude Code** (setup in [`claude/README.md`](claude/README.md)); the claude.ai
+web custom-connector flow is currently unreliable. In Claude Code (or any host with network egress)
+the bundled script reaches the public endpoints directly. The scripts also work standalone:
 
 ```bash
 python claude/scripts/whenpeak_predict.py --wake 07:00 --sleep 00:30 --quality good
