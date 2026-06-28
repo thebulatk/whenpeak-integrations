@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "whenpeak",
+  "owner": {
+    "name": "PRDIKT LTD",
+    "email": "hello@whenpeak.com"
+  },
+  "description": "WhenPeak for Claude — cognitive performance timing from sleep. Predict when you peak, dip, and are ready, and schedule around it.",
+  "plugins": [
+    {
+      "name": "whenpeak",
+      "source": "./",
+      "description": "Predict when your brain works best from your sleep, and turn it into scheduling advice. Bundles the WhenPeak skill (timing-first behaviour) and the WhenPeak connector (the MCP transport that reaches the API).",
+      "author": { "name": "PRDIKT LTD" },
+      "homepage": "https://whenpeak.com",
+      "repository": "https://github.com/thebulatk/whenpeak-integrations",
+      "license": "MIT",
+      "keywords": ["productivity", "scheduling", "sleep", "performance", "chronotype", "focus", "timing"],
+      "category": "productivity",
+      "strict": false,
+      "skills": ["./claude"],
+      "mcpServers": {
+        "whenpeak": {
+          "type": "sse",
+          "url": "https://mcp.whenpeak.com/sse"
+        }
+      }
+    }
+  ]
+}
