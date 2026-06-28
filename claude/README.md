@@ -23,8 +23,6 @@ It has **two pieces, and you need both**:
 
 ### 1. Connect the WhenPeak connector (the transport)
 
-Pick your Claude. Use your WhenPeak MCP server URL in place of `https://mcp.whenpeak.com/sse`.
-
 **Claude Desktop** — add to `claude_desktop_config.json`
 (Settings -> Developer -> Edit Config), then restart Claude Desktop:
 
@@ -45,32 +43,32 @@ Pick your Claude. Use your WhenPeak MCP server URL in place of `https://mcp.when
 claude mcp add --transport sse --scope user whenpeak https://mcp.whenpeak.com/sse
 ```
 
-**claude.ai (web):** adding a custom remote connector through the web UI is currently unreliable
-for servers like this one (the web flow assumes OAuth and frequently fails to connect even when the
-server is healthy). For now use Claude Desktop or Claude Code with the steps above, or the
+**claude.ai (web):** the web custom-connector flow is currently unreliable for servers like this
+one (it assumes OAuth and frequently fails). Use Claude Desktop or Claude Code above, or the
 zero-setup channels: the WhenPeak GPT and [whenpeak.com](https://whenpeak.com) itself.
 
-Confirm it's connected by asking: **"What WhenPeak tools do you have?"** — you should see the
-WhenPeak prediction tools listed.
+Confirm it's working by running a prediction directly:
+
+> "Run whenpeak_quick_predict: wake 07:00, sleep 23:00, quality good"
+
+You should get a performance curve with peak and dip times. If Claude says the tool doesn't exist,
+clear the mcp-remote cache (`rm -rf ~/.mcp-auth ~/.npm/_npx`) and restart Claude Desktop.
 
 ### 2. Add the skill (the behaviour)
 
 - **Claude.ai / Desktop:** Settings -> Capabilities -> Skills -> upload this folder.
 - **Claude Code:** place this folder at `.claude/skills/whenpeak/`.
 
-The skill triggers on its own — it reads `SKILL.md`'s description and activates when someone asks
-about timing, focus, when to schedule something, their chronotype, or how last night's sleep
-affects today.
-
 ### 3. Use it
 
-With the connector connected and the skill installed, just ask naturally:
+The skill triggers automatically — you don't need to mention WhenPeak. It activates whenever
+someone asks about timing, focus, scheduling, chronotype, or how last night's sleep affects today.
+The SKILL.md description handles this; the connector handles the API call.
 
 > "I slept 1am to 7:30am, fair quality — when should I do my deep work today?"
 
-Claude collects the sleep details, calls the WhenPeak tool through the connector, and answers with
-the peak windows, the dip, and the day's level — drawing the performance curve when the prediction
-includes it.
+Claude recognises the intent, collects any missing sleep details, calls `whenpeak_quick_predict`
+through the connector, and answers with peak windows, the dip, and a performance curve.
 
 ## What's in this folder
 
@@ -129,13 +127,14 @@ authenticated API. Scope matches the WhenPeak ChatGPT GPT.
 
 ## Troubleshooting
 
-- **"The code sandbox can't reach api.whenpeak.com" / "Could not reach the WhenPeak API."** The
-  connector isn't connected in this Claude. Connect it (step 1) or use whenpeak.com. Reinstalling
-  the skill won't help — the skill needs the connector as its transport.
-- **Connector won't connect on claude.ai web.** Known limitation of the web custom-connector flow.
-  Use Claude Desktop or Claude Code (step 1).
-- **The skill answers without a prediction or makes one up.** It shouldn't — it's instructed to
-  fetch server-side and never fabricate. If you see this, the connector likely isn't connected.
+- **"The code sandbox can't reach api.whenpeak.com" / "Could not reach the WhenPeak API."**
+  The connector isn't connected. Connect it (step 1) or use whenpeak.com. Reinstalling the skill
+  won't fix this — the skill needs the connector as its transport.
+- **Connector won't connect on claude.ai web.** Known limitation. Use Claude Desktop or Claude
+  Code instead.
+- **Tool call returns "not found" despite the connector being listed.** Clear the cache:
+  `rm -rf ~/.mcp-auth ~/.npm/_npx`, restart Claude Desktop, then call the tool directly rather
+  than asking "what tools do you have?" — Desktop's tool search surfaces a subset, not the full list.
 
 ## License
 
