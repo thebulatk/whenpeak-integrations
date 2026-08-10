@@ -109,6 +109,10 @@ python claude/scripts/whenpeak_predict.py --wake 07:00 --sleep 00:30 --quality g
 
 ## Changelog
 
+### August 2026
+- **Suggestion endpoint: the model in reverse.** New `POST /api/v1/performance/suggest` on the authenticated API. Prediction answers "given my behaviour, what is my curve"; suggestion answers "given a target, what behaviour gets me there", working backward from a future target to tonight. Three target shapes: `point` (be sharp at a moment), `window` (hold capacity across a span), and `shift` (move your whole body clock, for jet lag or for waking earlier permanently). Returns a night-by-night plan, a projected event-day outcome, an honest feasibility label, and a confidence label that matures as sleep history accumulates. Full reference at https://whenpeak.com/docs
+- Note for this repo: the integrations here are keyless clients over the public prediction endpoints, so none of them wrap `/suggest`. It needs an API key and a stored sleep history. Call it from your own authenticated client, or use the WhenPeak app.
+
 ### June 2026
 - **/predict contract clarified.** Optional fields must be omitted, not sent as `null`
   (`exercise_yesterday` / `exercise_timing` 422 on an explicit `null`); response scores are floats
