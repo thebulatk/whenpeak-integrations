@@ -10,7 +10,8 @@ the model stays behind the API. These are meant to be copied, learned from, and 
 
 | Path | What it is |
 |---|---|
-| `mcp_server.py` | A Model Context Protocol server (FastMCP) exposing WhenPeak to Claude Desktop and other MCP agents. A working reference for "MCP server that proxies a REST API." |
+| `mcp_server.py` | A Model Context Protocol server (FastMCP) exposing WhenPeak to Claude, Claude Code, and other MCP agents. Serves both the current Streamable HTTP transport and the legacy SSE transport from one process. A working reference for "MCP server that proxies a REST API." |
+| `server.json` | Manifest for the [Official MCP Registry](https://modelcontextprotocol.io/registry). Metadata only; it does not affect how the server runs. |
 | `skill_example.py` | A minimal end-to-end example of the agentic tool-use loop with the Anthropic SDK: model → `tool_use` → API call → `tool_result` → final answer. Includes `--auto` behavioural checks. |
 | `gpt/instructions.md` | The system prompt + setup for wiring WhenPeak into a ChatGPT GPT. |
 | `gpt/openapi_action.yaml` | The OpenAPI action schema for the public `/api/v1/predict` endpoint. |
@@ -23,14 +24,41 @@ pip install -r requirements.txt
 cp .env.example .env        # fill in keys
 ```
 
-**MCP server** (the public `predict` tool needs no key; the authed tools need `WHENPEAK_API_KEY`):
+**MCP server** (the public `predict` tools need no key; the authed tools need `WHENPEAK_API_KEY`):
 
 ```bash
-python mcp_server.py        # serves SSE at /sse, health at /health
+python mcp_server.py        # /mcp, /sse, /messages/ and /health on :8080
 ```
 
-Point an MCP client at `http://localhost:8080/sse`. To deploy, set `WHENPEAK_API_URL` and
-`WHENPEAK_API_KEY` as environment variables on your host.
+Point an MCP client at `http://localhost:8080/mcp`. That is Streamable HTTP, the current spec
+transport. `/sse` is still served for older clients that only speak the legacy transport, but new
+clients should use `/mcp`.
+
+Already hosted: `https://mcp.whenpeak.com/mcp`. You only need to run your own copy if you want the
+authenticated tools against your own API key.
+
+### Deploying your own copy
+
+Set `WHENPEAK_API_URL` and `WHENPEAK_API_KEY` as environment variables on your host, plus the two
+allowlists:
+
+```bash
+WHENPEAK_API_URL=https://api.whenpeak.com
+WHENPEAK_API_KEY=pk_live_...              # only needed for the two authed tools
+MCP_ALLOWED_HOSTS=mcp.example.com,mcp-prod.up.somehost.app
+MCP_ALLOWED_ORIGINS=https://claude.ai,https://example.com
+```
+
+The server validates the `Host` and `Origin` headers on MCP requests, which the spec requires as
+DNS-rebinding protection. The built-in default only covers localhost, so **a deployed copy with no
+`MCP_ALLOWED_HOSTS` returns 421 to every MCP client**. List every hostname the service actually
+answers on, including any platform-assigned domain. Only `:*` port wildcards are matched, so
+`example.com:*` works and `*.example.com` does not.
+
+`MCP_ALLOWED_ORIGINS` applies to browser-based clients only. A request with no `Origin` header
+passes, so curl and server-side agents are unaffected; a rejected origin returns 403 and is fixed by
+adding it to the list. `/health` sits outside both checks, so a wrong allowlist can never fail a
+platform health probe.
 
 **Agentic skill example** (needs `ANTHROPIC_API_KEY`):
 
@@ -110,6 +138,8 @@ python claude/scripts/whenpeak_predict.py --wake 07:00 --sleep 00:30 --quality g
 ## Changelog
 
 ### August 2026
+- **Streamable HTTP transport.** The MCP server now speaks the current transport at `/mcp` alongside the legacy SSE transport at `/sse`, from a single process. Point new clients at `/mcp`; SSE was deprecated in the 2025-03-26 spec revision and is kept only for backwards compatibility. Sessions are stateless, so no `Mcp-Session-Id` is issued, matching the stateless API underneath. `Host` and `Origin` validation is on by default as the spec requires, configured through `MCP_ALLOWED_HOSTS` and `MCP_ALLOWED_ORIGINS`.
+- **`server.json`.** Manifest for the Official MCP Registry, describing the hosted server and its endpoints.
 - **Suggestion endpoint: the model in reverse.** New `POST /api/v1/performance/suggest` on the authenticated API. Prediction answers "given my behaviour, what is my curve"; suggestion answers "given a target, what behaviour gets me there", working backward from a future target to tonight. Three target shapes: `point` (be sharp at a moment), `window` (hold capacity across a span), and `shift` (move your whole body clock, for jet lag or for waking earlier permanently). Returns a night-by-night plan, a projected event-day outcome, an honest feasibility label, and a confidence label that matures as sleep history accumulates. Full reference at https://whenpeak.com/docs
 - Note for this repo: the integrations here are keyless clients over the public prediction endpoints, so none of them wrap `/suggest`. It needs an API key and a stored sleep history. Call it from your own authenticated client, or use the WhenPeak app.
 
