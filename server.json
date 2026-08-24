@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.whenpeak/whenpeak",
+  "title": "WhenPeak",
+  "description": "Predict when a person's cognitive performance peaks and dips across the day from their sleep, and turn it into scheduling decisions. Keyless prediction tools plus authenticated tools for a connected account.",
+  "version": "1.0.0",
+  "websiteUrl": "https://whenpeak.com",
+  "repository": {
+    "url": "https://github.com/thebulatk/whenpeak-integrations",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.whenpeak.com/mcp"
+    },
+    {
+      "type": "sse",
+      "url": "https://mcp.whenpeak.com/sse"
+    }
+  ]
+}
