@@ -19,7 +19,22 @@ TRANSPORTS
               2025-03-26 spec and eligible for removal in a future revision;
               client support is degrading, so publish /mcp for anything new.
   /messages/  POST companion endpoint required by the legacy SSE transport.
-  /health     Plain health check.
+  /health     Plain health check. Not gated by the header checks below.
+
+SECURITY
+  The MCP spec requires servers to validate the Origin header on incoming
+  connections (DNS rebinding protection). Host and Origin allowlists are read
+  from the environment so deployment hostnames stay out of source control:
+
+    MCP_ALLOWED_HOSTS    comma-separated Host values, e.g. "mcp.example.com"
+    MCP_ALLOWED_ORIGINS  comma-separated Origin values, e.g. "https://example.com"
+
+  Only ":*" port wildcards are supported ("example.com:*"). Subdomain wildcards
+  such as "*.example.com" are NOT matched and will be rejected. List every
+  hostname the server is reachable on, including the platform-assigned one.
+  A rejected Host returns 421, a rejected Origin returns 403, and a request with
+  no Origin header at all is allowed, so curl and server-to-server clients are
+  unaffected. These checks apply to /mcp, /sse and /messages/ only.
 
 Run locally:
   pip install -r requirements.txt
@@ -54,10 +69,42 @@ AUTH_HEADERS = {"X-WhenPeak-API-Key": API_KEY, "Content-Type": "application/json
 
 TIMEOUT = httpx.Timeout(15.0, connect=5.0)
 
+
+def _env_list(var: str, default: list[str]) -> list[str]:
+    """Read a comma-separated allowlist from the environment."""
+    raw = os.getenv(var, "")
+    parsed = [item.strip() for item in raw.split(",") if item.strip()]
+    return parsed or default
+
+
+# Defaults cover the published hostname and local development. Any additional
+# hostname the service answers on (a platform-assigned domain, a staging host)
+# must be added via MCP_ALLOWED_HOSTS or every MCP request to it returns 421.
+ALLOWED_HOSTS = _env_list(
+    "MCP_ALLOWED_HOSTS",
+    ["mcp.whenpeak.com", "localhost:*", "127.0.0.1:*"],
+)
+
+# Browser-based MCP clients send an Origin. Anything not listed gets a 403,
+# which shows up in logs as a rejected origin and is fixed by adding it here.
+ALLOWED_ORIGINS = _env_list(
+    "MCP_ALLOWED_ORIGINS",
+    ["https://claude.ai", "https://whenpeak.com"],
+)
+
 mcp = FastMCP(
     "whenpeak",
+    # Stateless: a fresh transport per request, no Mcp-Session-Id issued. The
+    # underlying API is stateless too, so there is no session state worth
+    # keeping, and it removes an entire class of session-affinity bugs.
+    stateless_http=True,
+    # Plain application/json responses to POST rather than SSE-framed ones.
+    # Both are spec-valid; JSON is easier for directory scanners and for curl.
+    json_response=True,
     transport_security=TransportSecuritySettings(
-        enable_dns_rebinding_protection=False,
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=ALLOWED_HOSTS,
+        allowed_origins=ALLOWED_ORIGINS,
     ),
 )
 
@@ -129,7 +176,22 @@ async def whenpeak_quick_predict(
     exercise_timing: Optional[str] = None,
 ) -> dict:
     """
-    Predict today's cognitive performance from self-reported sleep.
+    Predict one day's cognitive performance curve from a single night of sleep
+    the user describes to you.
+
+    Returns the 24-hour curve, the primary and secondary peak times, the natural
+    afternoon dip, the estimated chronotype, a readiness score and a confidence
+    level, so you can tell the user when to put demanding work and when to
+    protect the dip.
+
+    Choose this tool when the question is about one specific day. Use
+    whenpeak_multiday_predict for a span of several days. Use
+    whenpeak_performance_now when the question is about this moment and the
+    server is configured with the user's own account.
+
+    Public and keyless: no API key is required. Read-only, with no side effects.
+    Nothing is stored, no account is created or modified, and the sleep values
+    passed in are not retained.
 
     Args:
         wake_time: this morning's wake time, "HH:MM" (e.g. "07:30")
@@ -139,9 +201,6 @@ async def whenpeak_quick_predict(
             unknown rather than guessing False.
         exercise_timing: "morning" | "afternoon" | "evening". Leave unset if
             unknown.
-
-    Returns the full 24-hour performance curve with peak times, the post-lunch
-    dip, chronotype, score, and an upgrade prompt. No authentication required.
     """
     # The API types the optional fields as plain bool/str with defaults, so an
     # explicit null is rejected with a 422 that looks like a missing required
@@ -167,11 +226,21 @@ async def whenpeak_multiday_predict(
     days: int = 7,
 ) -> dict:
     """
-    Project performance over the next 7-30 days from a single self-report.
+    Project cognitive performance across the next 7 to 30 days from a single
+    night of sleep the user describes to you.
 
-    Stateless and public (no key). With no history this repeats today's estimate
-    forward with decaying confidence; a true behavioural forecast that learns
-    weekday vs weekend patterns needs the WhenPeak app + connected wearable.
+    Returns one curve, peak, dip and score per day, plus the best and worst
+    projected days. This repeats one self-reported baseline forward with
+    decaying confidence, so treat it as the shape of a typical day rather than a
+    prediction for each individual day. A behavioural forecast that learns
+    weekday against weekend patterns needs connected sleep history in the
+    WhenPeak app.
+
+    Choose this tool for a span of days. Use whenpeak_quick_predict for one
+    specific day, and call it once rather than looping it per day.
+
+    Public and keyless: no API key is required. Read-only, with no side effects.
+    Nothing is stored.
 
     Args:
         wake_time: this morning's wake time, "HH:MM"
@@ -192,10 +261,23 @@ async def whenpeak_multiday_predict(
 @mcp.tool()
 async def whenpeak_best_window(task_type: str = "analytical", duration_minutes: int = 90) -> dict:
     """
-    Find the optimal focus window for a task type. Requires WHENPEAK_API_KEY.
+    Find today's best time window for one kind of work, using the stored sleep
+    history of the account this server is configured with.
 
-    Reads the sleep history stored against the configured account, so it is only
-    meaningful when this server runs with that user's own key.
+    Returns a start and end time for the window and the projected capacity
+    across it, tuned to the kind of work: analytical, creative, learning or
+    administrative.
+
+    Choose this tool when the user wants a slot for a task later today. Use
+    whenpeak_performance_now for the current moment instead, and
+    whenpeak_quick_predict when working from sleep the user describes rather
+    than stored history.
+
+    Requires WHENPEAK_API_KEY on the server and reads that one account's
+    history, so it is only meaningful where the server runs with the user's own
+    key. Without a key it returns a not_configured error rather than failing.
+    Read-only and stores nothing, but each call counts against that account's
+    monthly quota.
 
     Args:
         task_type: "analytical" | "creative" | "learning" | "administrative"
@@ -221,12 +303,23 @@ async def whenpeak_best_window(task_type: str = "analytical", duration_minutes: 
 @mcp.tool()
 async def whenpeak_performance_now() -> dict:
     """
-    Current-moment performance score and whether now is a peak, dip, or neutral
-    window. Designed for an agent to call before recommending a task.
-    Requires WHENPEAK_API_KEY.
+    Report the current moment's performance state for the account this server is
+    configured with: the score right now and whether now is a peak, a dip, or a
+    neutral window.
 
-    Reads the sleep history stored against the configured account, so it is only
-    meaningful when this server runs with that user's own key.
+    Returns the current score, the window type, a plain-language recommendation,
+    and today's peak and dip times. Meant as a cheap check before an agent
+    recommends, schedules or starts demanding work.
+
+    Choose this tool for "right now". Use whenpeak_best_window to find a slot
+    later today, and whenpeak_quick_predict when working from sleep the user
+    describes rather than stored history.
+
+    Requires WHENPEAK_API_KEY on the server and reads that one account's
+    history, so it is only meaningful where the server runs with the user's own
+    key. Without a key it returns a not_configured error rather than failing.
+    Read-only and stores nothing, but each call counts against that account's
+    monthly quota.
     """
     if not API_KEY:
         return {
@@ -261,7 +354,10 @@ if __name__ == "__main__":
 
         @asynccontextmanager
         async def lifespan(app: Starlette):
-            # Required for Streamable HTTP: owns session state for /mcp.
+            # Required for Streamable HTTP: owns the task group behind /mcp.
+            # Without this the route accepts connections and then fails at
+            # runtime, which is the classic symptom of mounting the two
+            # transports without carrying the lifespan across.
             async with mcp.session_manager.run():
                 yield
 
@@ -277,7 +373,9 @@ if __name__ == "__main__":
 
         # Routes are combined rather than mounted: each sub-app already declares
         # its own absolute paths, and mounting both at "/" would let the first
-        # mount swallow the other's routes.
+        # mount swallow the other's routes. /health is declared here rather than
+        # via a custom route so it stays outside the Host/Origin checks and a
+        # bad allowlist can never fail a platform health probe.
         app = Starlette(
             routes=[Route("/health", endpoint=health), *http_app.routes, *sse_app.routes],
             lifespan=lifespan,
